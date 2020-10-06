@@ -1,42 +1,27 @@
 import pygame as pg
+import math
 import numpy as np
 import random
 
-BG_WHITE = (200, 200, 200)
-BORDER_BLACK = (0, 0, 0)
-FOOD = (10, 255, 10)
-SNAKE_HEAD = (255, 10, 10)
-SNAKE_BODY = (150, 10, 150)
+from null_drawer import NullDrawer
+from random_move_selector import RandomMoveSelector
+from pygame_drawer import PygameSnakeDrawer
+from pygame_move_selector import PygameMoveSelector
+
+MOVEMENTS = {
+    0: np.array((0, 1)),
+    1: np.array((0, -1)),
+    2: np.array((1, 0)),
+    3: np.array((-1, 0))
+}
+
 SCORE_MULTIPLIER = 1
 BLOCK_SIZE = 10
 HEIGHT = 300
 WIDTH = 400
-TARGET_FPS = 10
 DIMS = (WIDTH, HEIGHT)
 IN_WIDTH = WIDTH - 2*BLOCK_SIZE
 IN_HEIGHT = HEIGHT - 2*BLOCK_SIZE
-
-NOT_ALLOWED_MOVES = {
-    pg.K_DOWN: pg.K_UP,
-    pg.K_UP: pg.K_DOWN,
-    pg.K_RIGHT: pg.K_LEFT,
-    pg.K_LEFT: pg.K_RIGHT
-}
-
-MOVEMENTS = {
-    pg.K_DOWN: np.array((0, 1)),
-    pg.K_UP: np.array((0, -1)),
-    pg.K_RIGHT: np.array((1, 0)),
-    pg.K_LEFT: np.array((-1, 0))
-}
-
-pg.init()
-display = pg.display.set_mode(DIMS)
-clock = pg.time.Clock()
-
-pg.display.set_caption("SNEK!")
-pg.draw.rect(display, BORDER_BLACK, [0,0,WIDTH,HEIGHT])
-pg.draw.rect(display, BG_WHITE, [BLOCK_SIZE,BLOCK_SIZE,IN_WIDTH,IN_HEIGHT])
 
 class Node:
     def __init__(self, x, y):
@@ -54,14 +39,104 @@ class LinkedList:
         self.last = self.last.next
 
 class Game:
-    def __init__(self):
+    def __init__(self, snake, food, move_selector, graphics):
         self.is_over = False
         self.score = 0
+        self.snek = snake
+        self.food = food
+        self.move_selector = move_selector
+        self.graphics = graphics
+    
+    def colision_check(self):
+        if self.snek.x < 1 or self.snek.y < 1 or \
+            self.snek.x > IN_WIDTH/BLOCK_SIZE or self.snek.y > IN_HEIGHT/BLOCK_SIZE:
+            self.is_over = True
+            return
+
+        head = self.snek.body.head
+        current = head.next
+        while current != None:
+            if head.x == current.x and head.y == current.y:
+                self.is_over = True
+                return
+            current = current.next
+
+        if self.snek.x == self.food.x and self.snek.y == self.food.y:
+            self.snek.body.append(self.snek.x, self.snek.y)
+            self.score += SCORE_MULTIPLIER
+            self.food.next_food_location()
+
+    def update_snake_position(self, move):
+        current = self.snek.body.head
+        current_x = current.x
+        current_y = current.y
+        (current.x, current.y) = (current.x, current.y) + MOVEMENTS[move]
+        (self.snek.x, self.snek.y) = (current.x, current.y)
+        while current.next != None:
+            tmp_x = current.next.x
+            tmp_y = current.next.y
+            current.next.x = current_x
+            current.next.y = current_y
+            current_x = tmp_x
+            current_y = tmp_y
+            current = current.next
+    
+    def get_snake_vision(self):
+        sight = [0, 0, 0, 0, 0, 0]
+        if self.snek.y - 1 < 1:
+            sight[0] = 1
+        if self.snek.y + 1 > IN_HEIGHT/BLOCK_SIZE:
+            sight[1] = 1
+        if self.snek.x - 1 < 1:
+            sight[2] = 1
+        if self.snek.x + 1 > IN_WIDTH/BLOCK_SIZE:
+            sight[3] = 1
+        
+        head = self.snek.body.head
+        current = head.next
+        while current != None:
+            if head.x == current.x and head.y-1 == current.y:
+                sight[0] = 1
+            if head.x == current.x and head.y+1 == current.y:
+                sight[1] = 1
+            if head.x-1 == current.x and head.y == current.y:
+                sight[2] = 1
+            if head.x+1 == current.x and head.y == current.y:
+                sight[3] = 1
+            if sight[:4] == [1,1,1,1]:
+                break
+            current = current.next
+
+        x = self.snek.x - self.food.x
+        y = self.snek.y - self.food.y
+        sight[4] = math.sin(math.atan2(y, x))
+        if abs(sight[4]) < 1e-10:
+            sight[4] = 0.0
+        sight[5] = math.sin(math.atan2(x, y))
+        if (sight[5]) < 1e-10:
+            sight[5] = 0.0
+    
+        return sight
+
+    def start(self):
+        current_move = -1
+        while not self.is_over:
+            current_move = self.move_selector.get_move(current_move, self.get_snake_vision())
+
+            if current_move in MOVEMENTS:
+                self.graphics.erase_snake(self.snek)
+                self.update_snake_position(current_move)
+                self.colision_check()
+
+            self.graphics.frame_loop(self.snek, self.food)
+
+    def quit(self):
+        self.graphics.clean()
 
 class Snake:
     def __init__(self):
-        self.x = WIDTH/2
-        self.y = HEIGHT/2
+        self.x = (WIDTH/BLOCK_SIZE)/2
+        self.y = (HEIGHT/BLOCK_SIZE)/2
         self.body = LinkedList(self.x, self.y)
 
 class Food:
@@ -69,93 +144,19 @@ class Food:
         self.next_food_location()
 
     def next_food_location(self):
-        self.x = int((BLOCK_SIZE + random.random() * IN_WIDTH)/BLOCK_SIZE) * BLOCK_SIZE
-        self.y = int((BLOCK_SIZE + random.random() * IN_HEIGHT)/BLOCK_SIZE) * BLOCK_SIZE
+        self.x = int((1 + random.random() * IN_WIDTH)/BLOCK_SIZE)
+        self.y = int((1 + random.random() * IN_HEIGHT)/BLOCK_SIZE)
 
         if self.x < BLOCK_SIZE or self.y < BLOCK_SIZE or \
             self.x > IN_WIDTH or self.y > IN_HEIGHT:
             self.next_food_location()
 
-snek = Snake()
-food = Food()
-game = Game()
+# graphics = NullDrawer()
+# move_selector = RandomMoveSelector()
+graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
+move_selector = PygameMoveSelector()
 
-def draw_block(color, x, y):
-    half_block = int(BLOCK_SIZE / 2)
-    pg.draw.rect(display, color, [x, y, BLOCK_SIZE, BLOCK_SIZE])
-
-def draw_snake():
-    current = snek.body.head
-    draw_block(SNAKE_HEAD, current.x, current.y)
-
-    while current.next != None:
-        current = current.next
-        draw_block(SNAKE_BODY, current.x, current.y)
-
-def erase_snake():
-    draw_block(BG_WHITE, snek.body.last.x, snek.body.last.y)
-
-def draw_food():
-    draw_block(FOOD, food.x, food.y)
-
-def game_loop():
-    draw_snake()
-    draw_food()
-    pg.display.update()
-    clock.tick(TARGET_FPS)
-
-def colision_check():
-    if snek.x < BLOCK_SIZE or snek.y < BLOCK_SIZE or \
-        snek.x > IN_WIDTH or snek.y > IN_HEIGHT:
-        game.is_over = True
-        return
-
-    head = snek.body.head
-    current = head.next
-    while current != None:
-        if head.x == current.x and head.y == current.y:
-            game.is_over = True
-            return
-        current = current.next
-
-    if snek.x == food.x and snek.y == food.y:
-        snek.body.append(snek.x, snek.y)
-        game.score += SCORE_MULTIPLIER
-        food.next_food_location()
-
-current_move = 0
-
-def update_snake_position():
-    current = snek.body.head
-    current_x = current.x
-    current_y = current.y
-    (current.x, current.y) = (current.x, current.y) + MOVEMENTS[current_move] * BLOCK_SIZE
-    (snek.x, snek.y) = (current.x, current.y)
-    while current.next != None:
-        tmp_x = current.next.x
-        tmp_y = current.next.y
-        current.next.x = current_x
-        current.next.y = current_y
-        current_x = tmp_x
-        current_y = tmp_y
-        current = current.next
-
-while not game.is_over:
-    for event in pg.event.get():
-        if event.type == pg.KEYDOWN and event.key in MOVEMENTS:
-            if current_move in NOT_ALLOWED_MOVES:
-                if event.key != NOT_ALLOWED_MOVES[current_move]:
-                    current_move = event.key
-            else:
-                current_move = event.key
-            break
-
-    if current_move in MOVEMENTS:
-        erase_snake()
-        update_snake_position()
-        colision_check()
-
-    game_loop()
-
+game = Game(Snake(), Food(), move_selector, graphics)
+game.start()
 print("Game Over! Final Score: {}".format(game.score))
-pg.quit()
+game.quit()
