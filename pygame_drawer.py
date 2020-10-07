@@ -5,7 +5,7 @@ BORDER_BLACK = (0, 0, 0)
 FOOD = (10, 255, 10)
 SNAKE_HEAD = (255, 10, 10)
 SNAKE_BODY = (150, 10, 150)
-TARGET_FPS = 5
+TARGET_FPS = 30
 
 class PygameSnakeDrawer:
     def __init__(self, width, height, block_size):

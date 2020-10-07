@@ -5,6 +5,7 @@ import random
 
 from null_drawer import NullDrawer
 from random_move_selector import RandomMoveSelector
+from parameter_move_selector import ParameterMoveSelector
 from pygame_drawer import PygameSnakeDrawer
 from pygame_move_selector import PygameMoveSelector
 
@@ -33,17 +34,19 @@ class LinkedList:
     def __init__(self, start_x, start_y):
         self.head = Node(start_x, start_y)
         self.last = self.head
+        self.size = 1
 
     def append(self, x, y):
         self.last.next = Node(x, y)
         self.last = self.last.next
+        self.size += 1
 
 class Game:
-    def __init__(self, snake, food, move_selector, graphics):
+    def __init__(self, move_selector, graphics):
         self.is_over = False
         self.score = 0
-        self.snek = snake
-        self.food = food
+        self.snek = Snake()
+        self.food = Food()
         self.move_selector = move_selector
         self.graphics = graphics
     
@@ -118,17 +121,21 @@ class Game:
     
         return sight
 
+    def loop(self, last_move):
+        current_move = self.move_selector.get_move(last_move, self.get_snake_vision())
+
+        if current_move in MOVEMENTS:
+            self.graphics.erase_snake(self.snek)
+            self.update_snake_position(current_move)
+            self.colision_check()
+
+        self.graphics.frame_loop(self.snek, self.food)
+        return current_move
+
     def start(self):
         current_move = -1
         while not self.is_over:
-            current_move = self.move_selector.get_move(current_move, self.get_snake_vision())
-
-            if current_move in MOVEMENTS:
-                self.graphics.erase_snake(self.snek)
-                self.update_snake_position(current_move)
-                self.colision_check()
-
-            self.graphics.frame_loop(self.snek, self.food)
+            current_move = self.loop(current_move)
 
     def quit(self):
         self.graphics.clean()
@@ -151,12 +158,14 @@ class Food:
             self.x > IN_WIDTH or self.y > IN_HEIGHT:
             self.next_food_location()
 
-# graphics = NullDrawer()
-# move_selector = RandomMoveSelector()
-graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
-move_selector = PygameMoveSelector()
+if __name__ == '__main__':
+    # graphics = NullDrawer()
+    # move_selector = RandomMoveSelector()
+    # move_selector = ParameterMoveSelector()
+    graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
+    move_selector = PygameMoveSelector()
 
-game = Game(Snake(), Food(), move_selector, graphics)
-game.start()
-print("Game Over! Final Score: {}".format(game.score))
-game.quit()
+    game = Game(move_selector, graphics)
+    game.start()
+    print("Game Over! Final Score: {}".format(game.score))
+    game.quit()
