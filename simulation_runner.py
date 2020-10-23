@@ -1,5 +1,6 @@
 import os
 import random
+import time
 import numpy as np
 
 from snake import *
@@ -9,6 +10,8 @@ from parameter_move_selector import ParameterMoveSelector
 from pygame_drawer import PygameSnakeDrawer
 from pygame_move_selector import PygameMoveSelector
 
+from multiprocessing import Pool
+
 def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
@@ -16,7 +19,7 @@ def softmax(x):
 class HookedGame(Game):
     def __init__(self, move_selector, graphics):
         super().__init__(move_selector, graphics)
-        self.last_eaten = 1000
+        self.last_eaten = 100
         self.fitness = 0
 
     def loop(self, last_move):
@@ -25,7 +28,7 @@ class HookedGame(Game):
         new_size = self.snek.body.size
 
         if new_size > initial_size:
-            self.last_eaten = 1000
+            self.last_eaten = 500
             self.fitness += 1
         else:
             self.last_eaten -= 1
@@ -101,37 +104,49 @@ class Simulator:
 
         return new_generation
 
+    def run_agent(self, args):
+        index, agent = args
+        game = HookedGame(agent, self.graphics)
+        game.start()
+        agent.last_fitness = game.fitness
+        game.quit()
+        return index, game.fitness
+
     def simulate(self, num_candidates=100, generation_count=0):
+        start = time.time()
         if generation_count != 0:
             agents = self.generate_offsprings(num_candidates, generation_count)
         else:
             agents = [ParameterMoveSelector() for i in range(num_candidates)]
 
-        for agent in agents:
-            game = HookedGame(agent, self.graphics)
-            game.start()
-            agent.last_fitness = game.fitness
-            game.quit()
+        with Pool() as pool:
+            results = pool.map_async(self.run_agent, enumerate(agents)).get()
+        for result in results:
+            i, fitness = result 
+            agents[i].last_fitness = fitness
 
         agents.sort(key=lambda agent: agent.last_fitness, reverse=True)
         if not os.path.exists('models/gen{}'.format(generation_count)):
             os.makedirs('models/gen{}'.format(generation_count))
         for i, agent in enumerate(agents):
             agent.save('models/gen{}/{}'.format(generation_count, i))
-        print('Highest fitness: {}'.format([i.last_fitness for i in agents[:int(num_candidates*0.1)]]))
+        print('Average fitness: {}, Top Agent: {}'.format(np.mean([int(i.last_fitness) for i in agents[:int(num_candidates*0.1)]]), agents[0].last_fitness))
+        return (time.time() - start)*1000
         
 
 # graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
-# move_selector = ParameterMoveSelector(file_path='models/gen57/0.npz')
+# move_selector = ParameterMoveSelector(file_path='models/gen99/0.npz')
+# print(move_selector.hidden_layer)
 # game = HookedGame(move_selector, graphics)
 # game.start()
 # game.quit()
 
+random.seed(1337)
 num_generations = 100
 player_size = 500
 graphics = NullDrawer()
 simulator = Simulator(graphics)
 
 for i in range(num_generations):
-    simulator.simulate(num_candidates=player_size, generation_count=i)
-    print('Done with generation {}'.format(i))
+    time_taken = simulator.simulate(num_candidates=player_size, generation_count=i)
+    print('Done with generation {}: took {}ms'.format(i, time_taken))

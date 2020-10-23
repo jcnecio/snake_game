@@ -16,6 +16,13 @@ MOVEMENTS = {
     3: np.array((-1, 0))
 }
 
+NOT_ALLOWED_MOVES = {
+    0: 1,
+    1: 0,
+    2: 3,
+    3: 2
+}
+
 SCORE_MULTIPLIER = 1
 BLOCK_SIZE = 10
 HEIGHT = 300
@@ -46,7 +53,7 @@ class Game:
         self.is_over = False
         self.score = 0
         self.snek = Snake()
-        self.food = Food()
+        self.food = Food(self.snek)
         self.move_selector = move_selector
         self.graphics = graphics
     
@@ -123,8 +130,13 @@ class Game:
 
     def loop(self, last_move):
         current_move = self.move_selector.get_move(last_move, self.get_snake_vision())
-
+        
         if current_move in MOVEMENTS:
+            if last_move in NOT_ALLOWED_MOVES:
+                if current_move != NOT_ALLOWED_MOVES[last_move]:
+                    current_move = current_move
+                else:
+                    current_move = last_move
             self.graphics.erase_snake(self.snek)
             self.update_snake_position(current_move)
             self.colision_check()
@@ -147,7 +159,8 @@ class Snake:
         self.body = LinkedList(self.x, self.y)
 
 class Food:
-    def __init__(self):
+    def __init__(self, snake):
+        self.snake = snake
         self.next_food_location()
 
     def next_food_location(self):
@@ -158,12 +171,19 @@ class Food:
             self.x > IN_WIDTH or self.y > IN_HEIGHT:
             self.next_food_location()
 
+        current = self.snake.body.head
+        while current != None:
+            if self.x == current.x and self.y == current.y:
+                self.next_food_location()
+                break
+            current = current.next
+
 if __name__ == '__main__':
     # graphics = NullDrawer()
-    # move_selector = RandomMoveSelector()
+    move_selector = RandomMoveSelector()
     # move_selector = ParameterMoveSelector()
     graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
-    move_selector = PygameMoveSelector()
+    # move_selector = PygameMoveSelector()
 
     game = Game(move_selector, graphics)
     game.start()
