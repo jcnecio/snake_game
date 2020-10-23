@@ -12,3 +12,9 @@ Developed using python 3.8.6
 ```bash
 python snake.py
 ```
+
+## Running the genetic algorithm
+```bash
+python simulation_runner.py
+```
+I didn't add a run specific generation part into the simulation runner, I usualy uncomment the part above the training part and comment the training code
