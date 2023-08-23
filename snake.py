@@ -179,11 +179,11 @@ class Food:
             current = current.next
 
 if __name__ == '__main__':
-    # graphics = NullDrawer()
-    move_selector = RandomMoveSelector()
-    # move_selector = ParameterMoveSelector()
+    # graphics = NullDrawer() # Draw no graphics
+    # move_selector = RandomMoveSelector() # Purely random
+    # move_selector = PygameMoveSelector() # Manual override
+    move_selector = ParameterMoveSelector(file_path='models/gen99/0.npz')
     graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
-    # move_selector = PygameMoveSelector()
 
     game = Game(move_selector, graphics)
     game.start()

@@ -119,7 +119,7 @@ class Simulator:
         else:
             agents = [ParameterMoveSelector() for i in range(num_candidates)]
 
-        with Pool() as pool:
+        with Pool(processes=4) as pool:
             results = pool.map_async(self.run_agent, enumerate(agents)).get()
         for result in results:
             i, fitness = result 
@@ -133,20 +133,16 @@ class Simulator:
         print('Average fitness: {}, Top Agent: {}'.format(np.mean([int(i.last_fitness) for i in agents[:int(num_candidates*0.1)]]), agents[0].last_fitness))
         return (time.time() - start)*1000
         
+def main():
+    random.seed(1337)
+    num_generations = 100
+    player_size = 500
+    graphics = NullDrawer()
+    simulator = Simulator(graphics)
 
-# graphics = PygameSnakeDrawer(WIDTH, HEIGHT, BLOCK_SIZE)
-# move_selector = ParameterMoveSelector(file_path='models/gen99/0.npz')
-# print(move_selector.hidden_layer)
-# game = HookedGame(move_selector, graphics)
-# game.start()
-# game.quit()
+    for i in range(num_generations):
+        time_taken = simulator.simulate(num_candidates=player_size, generation_count=i)
+        print('Done with generation {}: took {}ms'.format(i, time_taken))
 
-random.seed(1337)
-num_generations = 100
-player_size = 500
-graphics = NullDrawer()
-simulator = Simulator(graphics)
-
-for i in range(num_generations):
-    time_taken = simulator.simulate(num_candidates=player_size, generation_count=i)
-    print('Done with generation {}: took {}ms'.format(i, time_taken))
+if __name__ == '__main__':
+    main()
